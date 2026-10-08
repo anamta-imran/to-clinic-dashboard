@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  PENDING
+  CANCELLED
+}
+
+enum CallStatus {
+  COMPLETED
+  MISSED
+  IN_PROGRESS
+}
+
+enum AppointmentResult {
+  APPOINTMENT_BOOKED
+  INFORMATION_PROVIDED
+  CALLBACK_REQUESTED
+  NO_ACTION
+}
+
+enum ActivityType {
+  CALL_RECEIVED
+  INFO_COLLECTED
+  APPOINTMENT_BOOKED
+  APPOINTMENT_UPDATED
+  APPOINTMENT_CANCELLED
+  CALL_COMPLETED
+}
+
+enum AppointmentSource {
+  OMNIDIMENSION
+  MANUAL
+  DASHBOARD
+}
+
+model Patient {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String        @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
+  calls        Call[]
+}
+
+model Doctor {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  specialty    String?
+  availability String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  patientId   String
+  doctorId    String
+  phone       String
+  date        String
+  time        String
+  reason      String
+  status      AppointmentStatus @default(PENDING)
+  source      AppointmentSource @default(MANUAL)
+  callId      String?           @unique
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  patient     Patient           @relation(fields: [patientId], references: [id])
+  doctor      Doctor            @relation(fields: [doctorId], references: [id])
+  call        Call?             @relation(fields: [callId], references: [id])
+  activities  Activity[]
+
+  @@index([date, status])
+  @@index([patientId])
+  @@index([doctorId])
+}
+
+model Call {
+  id                String             @id @default(cuid())
+  omnidimCallId     String?            @unique
+  patientId         String?
+  phone             String
+  patientName       String?
+  startedAt         DateTime?
+  endedAt           DateTime?
+  durationSeconds   Int                @default(0)
+  callStatus        CallStatus         @default(COMPLETED)
+  appointmentResult AppointmentResult  @default(NO_ACTION)
+  transcriptJson    String?
+  summary           String?
+  recordingUrl      String?
+  rawPayloadJson    String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  patient           Patient?           @relation(fields: [patientId], references: [id])
+  appointment       Appointment?
+  activities        Activity[]
+
+  @@index([createdAt])
+  @@index([phone])
+  @@index([callStatus])
+  @@index([appointmentResult])
+}
+
+model Activity {
+  id            String       @id @default(cuid())
+  type          ActivityType
+  title         String
+  description   String
+  callId        String?
+  appointmentId String?
+  createdAt     DateTime     @default(now())
+  call          Call?        @relation(fields: [callId], references: [id])
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([createdAt])
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  eventKey    String   @unique
+  provider    String   @default("omnidimension")
+  payloadJson String
+  processedAt DateTime @default(now())
+}
