@@ -1,7 +1,19 @@
-import { formatDisplayDate, formatShortDate, todayIsoDate } from "@/lib/dates";
+import {
+  formatDateTimeLabel,
+  formatDisplayDate,
+  formatPhoneDisplay,
+  formatShortDate,
+  todayIsoDate,
+} from "@/lib/dates";
 import type { Appointment, AppointmentResult, CallRecord } from "@/lib/types";
 
-export { formatDisplayDate, formatShortDate, todayIsoDate };
+export {
+  formatDateTimeLabel,
+  formatDisplayDate,
+  formatPhoneDisplay,
+  formatShortDate,
+  todayIsoDate,
+};
 
 export function getInitials(name: string): string {
   return name

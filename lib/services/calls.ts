@@ -1,6 +1,7 @@
 import type { AppointmentResult, CallStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { paginatedMeta, parsePagination } from "@/lib/api";
+import { dayBounds, toZonedIsoDate } from "@/lib/dates";
 import { mapCall } from "@/lib/mappers";
 import type { CallRecord, PaginatedResponse } from "@/lib/types";
 import type { PageSize } from "@/lib/pagination";
@@ -43,8 +44,7 @@ export async function listCalls(
     where.appointmentResult = resultToDb[resultParam];
   }
   if (date && date !== "all") {
-    const start = new Date(`${date}T00:00:00+05:00`);
-    const end = new Date(`${date}T23:59:59.999+05:00`);
+    const { start, end } = dayBounds(date);
     where.OR = [
       { startedAt: { gte: start, lte: end } },
       {
@@ -83,9 +83,7 @@ export async function listCalls(
 
   const dates = Array.from(
     new Set(
-      dateRows.map((row) =>
-        (row.startedAt ?? row.createdAt).toISOString().slice(0, 10),
-      ),
+      dateRows.map((row) => toZonedIsoDate(row.startedAt ?? row.createdAt)),
     ),
   ).sort();
 

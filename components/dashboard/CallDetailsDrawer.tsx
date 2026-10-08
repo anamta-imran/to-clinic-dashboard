@@ -13,6 +13,7 @@ import type { CallRecord } from "@/lib/types";
 import {
   appointmentResultVariant,
   formatDisplayDate,
+  formatPhoneDisplay,
   getInitials,
 } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -100,7 +101,9 @@ export function CallDetailsDrawer({
                     </p>
                     <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-text-secondary">
                       <Phone className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{call.phone}</span>
+                      <span className="truncate">
+                        {formatPhoneDisplay(call.phone)}
+                      </span>
                     </p>
                   </div>
                 </div>

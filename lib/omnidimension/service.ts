@@ -253,16 +253,16 @@ export async function processOmniDimensionWebhook(
     }
   } else if (
     appointmentInfo &&
-    mapped.appointmentResult === "APPOINTMENT_BOOKED"
+    mapped.appointmentResult === "APPOINTMENT_BOOKED" &&
+    appointmentInfo.date
   ) {
+    // Only persist appointments with a normalized YYYY-MM-DD date.
+    // Never invent a date when OmniDimension sent unparseable natural language.
     const doctorId = await resolveDoctorId(appointmentInfo.doctorName);
-    const date =
-      appointmentInfo.date ??
-      new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(
-        new Date(),
-      );
+    const date = appointmentInfo.date;
     const time = appointmentInfo.time ?? "10:00 AM";
     const reason = appointmentInfo.reason ?? "Consultation";
+    const callerPhone = patient.phone || mapped.phone;
 
     const existingByCall = await prisma.appointment.findUnique({
       where: { callId: call.id },
@@ -274,7 +274,7 @@ export async function processOmniDimensionWebhook(
         data: {
           patientId: patient.id,
           doctorId,
-          phone: patient.phone,
+          phone: callerPhone,
           date,
           time,
           reason,
@@ -288,7 +288,7 @@ export async function processOmniDimensionWebhook(
         data: {
           patientId: patient.id,
           doctorId,
-          phone: patient.phone,
+          phone: callerPhone,
           date,
           time,
           reason,

@@ -25,6 +25,7 @@ import type {
 import {
   appointmentResultVariant,
   formatDisplayDate,
+  formatPhoneDisplay,
   getInitials,
 } from "@/lib/utils";
 
@@ -270,7 +271,7 @@ export function CallsTable({
                       </td>
                       <td className="px-3 py-2.5">
                         <p className="truncate text-text-secondary">
-                          {call.phone}
+                          {formatPhoneDisplay(call.phone)}
                         </p>
                       </td>
                       <td className="px-3 py-2.5">
@@ -328,7 +329,7 @@ export function CallsTable({
                             {call.patient}
                           </p>
                           <p className="truncate text-xs text-text-muted">
-                            {call.phone}
+                            {formatPhoneDisplay(call.phone)}
                           </p>
                         </div>
                         <button

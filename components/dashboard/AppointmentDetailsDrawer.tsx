@@ -13,7 +13,11 @@ import {
 import { useClinicData } from "@/components/providers/ClinicDataProvider";
 import { APPOINTMENT_REASONS } from "@/lib/clinic";
 import type { Appointment, AppointmentStatus } from "@/lib/types";
-import { formatDisplayDate, getInitials } from "@/lib/utils";
+import {
+  formatDisplayDate,
+  formatPhoneDisplay,
+  getInitials,
+} from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 interface AppointmentDetailsDrawerProps {
@@ -119,7 +123,9 @@ export function AppointmentDetailsDrawer({
                   </p>
                   <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-text-secondary">
                     <Phone className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{current.phone}</span>
+                    <span className="truncate">
+                      {formatPhoneDisplay(current.phone)}
+                    </span>
                   </p>
                 </div>
               </div>

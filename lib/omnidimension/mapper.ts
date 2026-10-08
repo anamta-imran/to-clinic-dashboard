@@ -1,24 +1,20 @@
+import {
+  normalizeAppointmentDate,
+  normalizeAppointmentTime,
+  parseOmniDimensionDateTime,
+} from "@/lib/dates";
+import { normalizePhone } from "@/lib/api";
 import type {
   MappedOmniDimensionCall,
   MappedTranscriptLine,
   OmniDimensionInteraction,
   OmniDimensionWebhookPayload,
 } from "@/lib/omnidimension/types";
-import { normalizePhone } from "@/lib/api";
 
 function asString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
   return text.length > 0 ? text : null;
-}
-
-function parseDate(value: unknown): Date | null {
-  const text = asString(value);
-  if (!text) return null;
-  // OmniDimension examples use "YYYY-MM-DD HH:mm:ss"
-  const normalized = text.includes("T") ? text : text.replace(" ", "T");
-  const date = new Date(normalized);
-  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function parseDurationSeconds(
@@ -67,6 +63,12 @@ function truthy(value: unknown): boolean {
   return text === "true" || text === "yes" || text === "1";
 }
 
+function falsyFlag(value: unknown): boolean {
+  if (typeof value === "boolean") return value === false;
+  const text = asString(value)?.toLowerCase();
+  return text === "false" || text === "no" || text === "0";
+}
+
 function interactionsToTranscript(
   interactions: OmniDimensionInteraction[] | null | undefined,
 ): MappedTranscriptLine[] {
@@ -78,8 +80,6 @@ function interactionsToTranscript(
   );
 
   for (const item of sorted) {
-    // Documented interaction shape: user_query is the caller turn (or false),
-    // followed by bot_response for that step.
     if (typeof item.user_query === "string") {
       const user = asString(item.user_query);
       if (user) lines.push({ speaker: "Patient", text: user });
@@ -116,68 +116,19 @@ function conversationStringToTranscript(
     );
     if (patientMatch?.[2]) {
       lines.push({ speaker: "Patient", text: patientMatch[2].trim() });
-      continue;
     }
   }
 
-  // If labels are absent, do not invent speakers — return empty and rely on interactions.
   return lines;
-}
-
-function extractAppointment(
-  extracted: Record<string, unknown>,
-): MappedOmniDimensionCall["appointment"] {
-  const cancelled =
-    truthy(extracted.appointment_cancelled) ||
-    truthy(extracted.cancelled) ||
-    asString(extracted.appointment_status)?.toLowerCase() === "cancelled";
-
-  const booked =
-    truthy(extracted.appointment_booked) ||
-    truthy(extracted.booked) ||
-    Boolean(
-      asString(extracted.appointment_date) ||
-        asString(extracted.date) ||
-        asString(extracted.appointment_time) ||
-        asString(extracted.time),
-    );
-
-  if (!booked && !cancelled) return null;
-
-  const statusRaw = asString(extracted.appointment_status)?.toUpperCase();
-  let status: "CONFIRMED" | "PENDING" | "CANCELLED" | null = null;
-  if (cancelled || statusRaw === "CANCELLED") status = "CANCELLED";
-  else if (statusRaw === "PENDING") status = "PENDING";
-  else if (statusRaw === "CONFIRMED" || booked) status = "CONFIRMED";
-
-  return {
-    doctorName:
-      asString(extracted.doctor) ??
-      asString(extracted.doctor_name) ??
-      asString(extracted.physician),
-    date:
-      asString(extracted.appointment_date) ??
-      asString(extracted.date) ??
-      asString(extracted.scheduled_date),
-    time:
-      asString(extracted.appointment_time) ??
-      asString(extracted.time) ??
-      asString(extracted.scheduled_time),
-    reason:
-      asString(extracted.reason) ??
-      asString(extracted.appointment_reason) ??
-      asString(extracted.appointment_type) ??
-      asString(extracted.complaint),
-    status,
-    cancelled,
-  };
 }
 
 function deriveAppointmentResult(
   extracted: Record<string, unknown>,
   appointment: MappedOmniDimensionCall["appointment"],
 ): MappedOmniDimensionCall["appointmentResult"] {
-  if (appointment && !appointment.cancelled) return "APPOINTMENT_BOOKED";
+  if (appointment && !appointment.cancelled && appointment.date) {
+    return "APPOINTMENT_BOOKED";
+  }
   if (
     truthy(extracted.callback_requested) ||
     truthy(extracted.callback) ||
@@ -207,15 +158,15 @@ export function mapOmniDimensionPayload(
     asString(payload.phone_number) ??
     asString(payload.from_number) ??
     asString(extracted.phone) ??
-    asString(extracted.phone_number) ??
-    "unknown";
+    asString(extracted.phone_number);
 
-  const phone = normalizePhone(phoneRaw) || phoneRaw;
+  const phone = phoneRaw ? normalizePhone(phoneRaw) || phoneRaw : "unknown";
   const omnidimCallId =
     asString(payload.call_id) ?? asString(payload.call_sid);
   const startedAt =
-    parseDate(payload.start_time) ?? parseDate(payload.call_date);
-  const endedAt = parseDate(payload.end_time);
+    parseOmniDimensionDateTime(payload.start_time) ??
+    parseOmniDimensionDateTime(payload.call_date);
+  const endedAt = parseOmniDimensionDateTime(payload.end_time);
   const durationSeconds = parseDurationSeconds(
     payload.call_duration,
     startedAt,
@@ -233,7 +184,58 @@ export function mapOmniDimensionPayload(
             asString(report.call_conversation),
         );
 
-  const appointment = extractAppointment(extracted);
+  const reference = startedAt ?? new Date();
+  const rawDate =
+    asString(extracted.appointment_date) ??
+    asString(extracted.date) ??
+    asString(extracted.scheduled_date);
+  const rawTime =
+    asString(extracted.appointment_time) ??
+    asString(extracted.time) ??
+    asString(extracted.scheduled_time);
+  const normalizedDate = normalizeAppointmentDate(rawDate, reference);
+  const normalizedTime = normalizeAppointmentTime(rawTime);
+
+  const cancelled =
+    truthy(extracted.appointment_cancelled) ||
+    truthy(extracted.cancelled) ||
+    asString(extracted.appointment_status)?.toLowerCase() === "cancelled";
+
+  const explicitlyBooked =
+    truthy(extracted.appointment_booked) || truthy(extracted.booked);
+  const explicitlyNotBooked =
+    falsyFlag(extracted.appointment_booked) || falsyFlag(extracted.booked);
+
+  const booked =
+    !cancelled &&
+    !explicitlyNotBooked &&
+    (explicitlyBooked || Boolean(normalizedDate));
+
+  const statusRaw = asString(extracted.appointment_status)?.toUpperCase();
+  let status: "CONFIRMED" | "PENDING" | "CANCELLED" | null = null;
+  if (cancelled || statusRaw === "CANCELLED") status = "CANCELLED";
+  else if (statusRaw === "PENDING") status = "PENDING";
+  else if (statusRaw === "CONFIRMED" || booked) status = "CONFIRMED";
+
+  const appointment =
+    booked || cancelled
+      ? {
+          doctorName:
+            asString(extracted.doctor) ??
+            asString(extracted.doctor_name) ??
+            asString(extracted.physician),
+          date: normalizedDate,
+          time: normalizedTime,
+          reason:
+            asString(extracted.reason) ??
+            asString(extracted.appointment_reason) ??
+            asString(extracted.appointment_type) ??
+            asString(extracted.complaint),
+          status,
+          cancelled,
+        }
+      : null;
+
   const patientName =
     asString(extracted.patient_name) ??
     asString(extracted.name) ??

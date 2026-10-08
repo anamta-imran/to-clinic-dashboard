@@ -8,7 +8,7 @@ import type {
   Doctor as DbDoctor,
   Patient as DbPatient,
 } from "@prisma/client";
-import { formatDisplayDate } from "@/lib/dates";
+import { formatDateTimeLabel, formatPhoneDisplay } from "@/lib/dates";
 import type {
   ActivityItem,
   ActivityType,
@@ -112,27 +112,21 @@ export function parseTranscriptJson(
   }
 }
 
-function formatCallDateLabel(startedAt: Date | null, createdAt: Date): string {
-  const source = startedAt ?? createdAt;
-  const isoDate = source.toISOString().slice(0, 10);
-  const time = source.toLocaleTimeString("en-PK", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-  return `${formatDisplayDate(isoDate)} · ${time}`;
-}
-
 export function mapAppointment(
   appointment: AppointmentWithRelations,
 ): Appointment {
+  const phone =
+    appointment.phone ||
+    appointment.patient.phone ||
+    "";
+
   return {
     id: appointment.id,
     patient: appointment.patient.name,
     doctor: appointment.doctor.name,
     date: appointment.date,
     time: appointment.time,
-    phone: appointment.phone,
+    phone: formatPhoneDisplay(phone) === "Unavailable" ? "" : phone,
     reason: appointment.reason,
     status: appointmentStatusToUi[appointment.status],
     source: appointment.source,
@@ -147,15 +141,18 @@ export function mapAppointment(
 export function mapCall(call: CallWithRelations): CallRecord {
   const patientName =
     call.patient?.name ?? call.patientName ?? "Unknown caller";
-  const startedAt = call.startedAt;
-  const datetime = (startedAt ?? call.createdAt).toISOString();
+  const sourceTime = call.startedAt ?? call.createdAt;
+  const phone =
+    call.phone ||
+    call.patient?.phone ||
+    "";
 
   return {
     id: call.id,
     patient: patientName,
-    phone: call.phone,
-    dateLabel: formatCallDateLabel(call.startedAt, call.createdAt),
-    datetime,
+    phone: formatPhoneDisplay(phone) === "Unavailable" ? "" : phone,
+    dateLabel: formatDateTimeLabel(sourceTime),
+    datetime: sourceTime.toISOString(),
     duration: formatDuration(call.durationSeconds),
     callStatus: callStatusToUi[call.callStatus],
     appointmentResult: appointmentResultToUi[call.appointmentResult],

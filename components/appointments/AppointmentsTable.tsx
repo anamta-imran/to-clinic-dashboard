@@ -25,7 +25,12 @@ import type {
   AppointmentStatus,
   PaginatedResponse,
 } from "@/lib/types";
-import { formatDisplayDate, formatShortDate, getInitials } from "@/lib/utils";
+import {
+  formatDisplayDate,
+  formatPhoneDisplay,
+  formatShortDate,
+  getInitials,
+} from "@/lib/utils";
 
 const statuses: Array<"All" | AppointmentStatus> = [
   "All",
@@ -265,7 +270,7 @@ export function AppointmentsTable({
                       </td>
                       <td className="px-3 py-2.5">
                         <p className="truncate text-text-secondary">
-                          {appointment.phone}
+                          {formatPhoneDisplay(appointment.phone)}
                         </p>
                       </td>
                       <td className="px-3 py-2.5">
@@ -353,7 +358,7 @@ export function AppointmentsTable({
                           {appointment.patient}
                         </p>
                         <p className="truncate text-xs text-text-muted">
-                          {appointment.phone}
+                          {formatPhoneDisplay(appointment.phone)}
                         </p>
                       </td>
                       <td className="px-3 py-2.5">
@@ -420,7 +425,7 @@ export function AppointmentsTable({
                             {appointment.patient}
                           </p>
                           <p className="truncate text-xs text-text-muted">
-                            {appointment.phone}
+                            {formatPhoneDisplay(appointment.phone)}
                           </p>
                         </div>
                         <StatusBadge
